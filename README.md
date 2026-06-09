@@ -109,6 +109,10 @@ their approval state:
 
 ![Answers on the review screen](docs/screenshots/review-answers.png)
 
+On a phone the tables scroll sideways rather than squeezing the answers:
+
+<img src="docs/screenshots/review-queue-mobile.png" alt="Review queue at phone width" width="260"> <img src="docs/screenshots/review-detail-mobile.png" alt="Review detail at phone width" width="260">
+
 ### The review assistant
 
 `review_assistant/` reads a submitted questionnaire before the reviewer does.

@@ -99,6 +99,24 @@ class ReviewTests(TestCase):
                 onboarding, OnboardingStatus.PENDING, reviewer=self.reviewer
             )
 
+    def test_a_stale_instance_cannot_review_twice(self):
+        """The second of two reviewers acting at once sees the first decision."""
+        onboarding = make_onboarding(status=OnboardingStatus.IN_REVIEW)
+        stale = type(onboarding).objects.get(pk=onboarding.pk)
+
+        lifecycle.review(onboarding, OnboardingStatus.APPROVED, reviewer=self.reviewer)
+        with self.assertRaises(lifecycle.IllegalTransitionError):
+            lifecycle.review(
+                stale,
+                OnboardingStatus.REJECTED,
+                reason="Too late",
+                reviewer=self.reviewer,
+            )
+
+        onboarding.refresh_from_db()
+        assert onboarding.status == OnboardingStatus.APPROVED
+        assert stale.status == OnboardingStatus.APPROVED
+
 
 class ReopenTests(TestCase):
     def test_reopen_clears_the_review_stamp(self):

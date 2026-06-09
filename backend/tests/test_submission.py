@@ -103,6 +103,16 @@ class SubmitStepTests(TestCase):
         with self.assertRaises(submission.OnboardingLockedError):
             submission.submit_step(onboarding, self.step_one, self._responses())
 
+    def test_a_stale_instance_does_not_bypass_an_approval(self):
+        """The status is re-read under a lock, not trusted from the caller."""
+        stale = type(self.onboarding).objects.get(pk=self.onboarding.pk)
+        self.onboarding.status = OnboardingStatus.APPROVED
+        self.onboarding.save(update_fields=["status"])
+
+        with self.assertRaises(submission.OnboardingLockedError):
+            submission.submit_step(stale, self.step_one, self._responses())
+        assert not Answer.objects.filter(onboarding=self.onboarding).exists()
+
     def test_editing_a_rejected_onboarding_reopens_it(self):
         onboarding = make_onboarding(
             user=make_user("rejected@example.test"),

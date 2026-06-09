@@ -66,6 +66,22 @@ def is_editable(onboarding) -> bool:
     return onboarding.status in EDITABLE_STATES
 
 
+def lock(onboarding):
+    """Re-read ``onboarding`` with a row lock, inside the caller's transaction.
+
+    The instance a view holds was loaded before the decision was made. Two
+    reviewers, or a reviewer and a participant, acting at once would both see
+    the old status and both pass ``can_transition``; reading the row again
+    under ``SELECT ... FOR UPDATE`` makes the second one wait and then see
+    the first one's move. The fresh values are copied onto the caller's
+    instance so it does not go on holding a stale status.
+    """
+    fresh = type(onboarding).objects.select_for_update().get(pk=onboarding.pk)
+    for field in ("status", "completed_steps", "completed_at", "review_reason"):
+        setattr(onboarding, field, getattr(fresh, field))
+    return onboarding
+
+
 def _apply(onboarding, target: str, extra_fields: dict) -> None:
     if not can_transition(onboarding.status, target):
         raise IllegalTransitionError(onboarding.status, target)
@@ -117,6 +133,8 @@ def review(onboarding, outcome: str, *, reason: str | None = None, reviewer=None
     """
     if outcome not in REVIEW_OUTCOMES:
         raise IllegalTransitionError(onboarding.status, outcome)
+
+    lock(onboarding)
 
     reason = (reason or "").strip()
     if outcome == OnboardingStatus.REJECTED and not reason:

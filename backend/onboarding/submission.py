@@ -63,6 +63,7 @@ def unlocked_step_number(onboarding) -> int:
 @transaction.atomic
 def submit_step(onboarding, step, responses) -> SubmissionResult:
     """Persist one step's answers and advance the onboarding."""
+    lifecycle.lock(onboarding)
     if not lifecycle.is_editable(onboarding):
         raise OnboardingLockedError(onboarding.status)
 

@@ -191,6 +191,12 @@
     margin-bottom: 14px;
 }
 
+.rv-form .rv-field .rv-sub {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+}
+
 .rv-docs {
     display: flex;
     flex-direction: column;

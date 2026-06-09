@@ -48,7 +48,13 @@ def validate_for_question(payload: dict, question) -> dict:
     except InlineValueRejectedError as exc:
         raise serializers.ValidationError({"detail": str(exc)}) from exc
 
-    if value in (None, "") and question.is_required:
+    # A value sent in some other column is a client mistake even when the
+    # question is optional; storing an empty answer would hide it.
+    sent_elsewhere = any(
+        field != handler.value_field and payload.get(field) not in (None, "")
+        for field in payload
+    )
+    if value in (None, "") and (question.is_required or sent_elsewhere):
         msg = {
             "detail": (
                 f"Question {question.id} expects '{handler.value_field}' "

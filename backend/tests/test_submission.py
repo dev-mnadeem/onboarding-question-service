@@ -103,6 +103,35 @@ class SubmitStepTests(TestCase):
         with self.assertRaises(submission.OnboardingLockedError):
             submission.submit_step(onboarding, self.step_one, self._responses())
 
+    def test_an_optional_question_answered_in_the_wrong_column_is_refused(self):
+        notes = make_question("Anything else?", AnswerType.NUMBER, is_required=False)
+        step = make_step("Optional", questions=[notes], order=3)
+        self.onboarding.completed_steps = 2
+        self.onboarding.save(update_fields=["completed_steps"])
+
+        from rest_framework.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError):
+            submission.submit_step(
+                self.onboarding,
+                step,
+                [{"question_id": notes.id, "answer": {"answer_text": "forty"}}],
+            )
+        assert not Answer.objects.filter(question=notes).exists()
+
+    def test_an_optional_question_may_be_left_blank(self):
+        notes = make_question("Anything else?", AnswerType.TEXT, is_required=False)
+        step = make_step("Optional", questions=[notes], order=3)
+        self.onboarding.completed_steps = 2
+        self.onboarding.save(update_fields=["completed_steps"])
+
+        submission.submit_step(
+            self.onboarding,
+            step,
+            [{"question_id": notes.id, "answer": {"answer_text": ""}}],
+        )
+        assert Answer.objects.get(question=notes).answer_text == ""
+
     def test_a_stale_instance_does_not_bypass_an_approval(self):
         """The status is re-read under a lock, not trusted from the caller."""
         stale = type(self.onboarding).objects.get(pk=self.onboarding.pk)

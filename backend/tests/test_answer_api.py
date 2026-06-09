@@ -145,3 +145,9 @@ class ListDocumentsTests(APITestCase):
 
         response = self.client.get(self.url, {"onboarding_id": 9999})
         assert response.data["count"] == 0
+
+    def test_a_non_numeric_filter_is_a_400_not_a_500(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.url, {"onboarding_id": "abc"})
+        assert response.status_code == 400
+        assert "onboarding_id" in response.data

@@ -20,7 +20,11 @@ from onboarding.step_plan import build_step_plan
 from question.models import Question
 
 from .models import Answer, Document
-from .serializers import DocumentSerializer, DocumentUploadSerializer
+from .serializers import (
+    DocumentFilterSerializer,
+    DocumentSerializer,
+    DocumentUploadSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,12 +111,15 @@ class ListDocumentsAPIView(ListAPIView):
             answer__user=self.request.user
         ).select_related("answer", "answer__question", "answer__onboarding")
 
-        onboarding_id = self.request.query_params.get("onboarding_id")
-        if onboarding_id:
-            queryset = queryset.filter(answer__onboarding_id=onboarding_id)
-
-        question_id = self.request.query_params.get("question_id")
-        if question_id:
-            queryset = queryset.filter(answer__question_id=question_id)
+        filters = DocumentFilterSerializer(data=self.request.query_params)
+        filters.is_valid(raise_exception=True)
+        if "onboarding_id" in filters.validated_data:
+            queryset = queryset.filter(
+                answer__onboarding_id=filters.validated_data["onboarding_id"]
+            )
+        if "question_id" in filters.validated_data:
+            queryset = queryset.filter(
+                answer__question_id=filters.validated_data["question_id"]
+            )
 
         return queryset.order_by("-uploaded_at")

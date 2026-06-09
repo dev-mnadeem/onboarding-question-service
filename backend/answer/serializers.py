@@ -85,6 +85,13 @@ class DocumentUploadSerializer(serializers.Serializer):
         return uploaded
 
 
+class DocumentFilterSerializer(serializers.Serializer):
+    """Optional query parameters of ``GET /api/answer/documents/``."""
+
+    onboarding_id = serializers.IntegerField(required=False, min_value=1)
+    question_id = serializers.IntegerField(required=False, min_value=1)
+
+
 class DocumentSerializer(serializers.ModelSerializer):
     """A stored document, as returned by the list and upload endpoints."""
 

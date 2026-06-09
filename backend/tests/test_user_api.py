@@ -62,6 +62,14 @@ class AuthEndpointTests(APITestCase):
         )
         assert reuse.status_code == 401
 
+    def test_logout_with_a_malformed_token_is_a_400(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            reverse("logout"), {"refresh": "not-a-token"}, format="json"
+        )
+        assert response.status_code == 400
+        assert "refresh" in response.data
+
 
 class RolePermissionTests(TestCase):
     def test_the_admin_role_grants_django_staff_and_superuser(self):

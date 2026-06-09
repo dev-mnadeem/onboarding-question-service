@@ -2,6 +2,7 @@ from typing import ClassVar
 
 from django.contrib.auth import authenticate
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from user.models import User
@@ -51,7 +52,12 @@ class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
     def validate(self, attrs):
-        self.token = RefreshToken(attrs["refresh"])
+        try:
+            self.token = RefreshToken(attrs["refresh"])
+        except TokenError as exc:
+            # Malformed, expired or already blacklisted: the client's fault,
+            # so a 400 rather than the 500 an unhandled TokenError becomes.
+            raise serializers.ValidationError({"refresh": str(exc)}) from exc
         return attrs
 
     def save(self, **kwargs):  # noqa: ARG002

@@ -1,3 +1,5 @@
+import logging
+
 from django.db import connection
 from rest_framework import status
 from rest_framework.decorators import (
@@ -7,6 +9,8 @@ from rest_framework.decorators import (
 )
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(["GET"])
@@ -22,9 +26,12 @@ def healthz(_request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
-    except Exception as exc:
+    except Exception:
+        # Logged, not returned: this endpoint is public, and a driver error
+        # can name the host, the user and the database.
+        logger.exception("Health check could not reach the database")
         return Response(
-            {"status": "unhealthy", "database": "unreachable", "detail": str(exc)},
+            {"status": "unhealthy", "database": "unreachable"},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 

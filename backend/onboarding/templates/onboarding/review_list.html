@@ -10,25 +10,25 @@
     <span class="rv-sub">{{ waiting_count }} onboarding{{ waiting_count|pluralize }} waiting for a decision</span>
   </div>
 
-  <div class="rv-filters">
-    <a href="?status=inreview" class="{% if status_filter == 'inreview' %}is-active{% endif %}">Waiting</a>
+  <nav class="rv-filters" aria-label="Filter by status">
+    <a href="?status=inreview"{% if status_filter == 'inreview' %} class="is-active" aria-current="page"{% endif %}>Waiting</a>
     {% for value, label in status_choices %}
       {% if value != 'inreview' %}
-        <a href="?status={{ value }}" class="{% if status_filter == value %}is-active{% endif %}">{{ label }}</a>
+        <a href="?status={{ value }}"{% if status_filter == value %} class="is-active" aria-current="page"{% endif %}>{{ label }}</a>
       {% endif %}
     {% endfor %}
-    <a href="?status=all" class="{% if status_filter == 'all' %}is-active{% endif %}">All</a>
-  </div>
+    <a href="?status=all"{% if status_filter == 'all' %} class="is-active" aria-current="page"{% endif %}>All</a>
+  </nav>
 
   <table class="rv-table">
     <thead>
       <tr>
-        <th>Participant</th>
-        <th>Onboarding</th>
-        <th>Status</th>
-        <th>Progress</th>
-        <th>Submitted</th>
-        <th></th>
+        <th scope="col">Participant</th>
+        <th scope="col">Onboarding</th>
+        <th scope="col">Status</th>
+        <th scope="col">Progress</th>
+        <th scope="col">Submitted</th>
+        <th scope="col"><span class="rv-visually-hidden">Actions</span></th>
       </tr>
     </thead>
     <tbody>
@@ -42,20 +42,20 @@
         <td><span class="rv-pill rv-pill--{{ ob.status }}">{{ ob.get_status_display }}</span></td>
         <td>{{ ob.completed_steps }} / {{ ob.step_plan|length }}</td>
         <td>{{ ob.completed_at|date:"Y-m-d H:i"|default:"—" }}</td>
-        <td><a class="btn btn-sm btn-outline-primary" href="{% url 'admin:review_onboarding_detail' ob.id %}">Open</a></td>
+        <td><a class="btn btn-sm btn-outline-primary" href="{% url 'admin:review_onboarding_detail' ob.id %}" aria-label="Open {{ ob.onboarding_title }}">Open</a></td>
       </tr>
       {% empty %}
-      <tr><td colspan="6" class="rv-empty">Nothing here.</td></tr>
+      <tr><td colspan="6" class="rv-empty">No onboardings in this state.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
   {% if page_obj.paginator.num_pages > 1 %}
-  <p class="rv-pager">
+  <nav class="rv-pager" aria-label="Pages">
     Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
     {% if page_obj.has_previous %}<a href="?status={{ status_filter }}&page={{ page_obj.previous_page_number }}">previous</a>{% endif %}
     {% if page_obj.has_next %}<a href="?status={{ status_filter }}&page={{ page_obj.next_page_number }}">next</a>{% endif %}
-  </p>
+  </nav>
   {% endif %}
 </div>
 {% endblock %}

@@ -7,7 +7,7 @@
 <div class="rv-wrap">
 
   {% if messages %}
-  <ul class="rv-messages">
+  <ul class="rv-messages" role="status">
     {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
   </ul>
   {% endif %}
@@ -46,8 +46,8 @@
     </div>
   </div>
 
-  <div class="rv-card rv-assistant rv-assistant--{{ summary.recommendation }}">
-    <h2>Review assistant</h2>
+  <section class="rv-card rv-assistant rv-assistant--{{ summary.recommendation }}" aria-labelledby="assistant-heading">
+    <h2 id="assistant-heading">Review assistant</h2>
     <p class="rv-headline">{{ summary.headline }}</p>
     {% if summary.findings %}
     <ul class="rv-findings">
@@ -57,7 +57,7 @@
     </ul>
     {% endif %}
     <span class="rv-provider">Recommendation: {{ summary.recommendation }} · provider: {{ summary.provider }}</span>
-  </div>
+  </section>
 
   {% if onboarding.review_reason %}
   <div class="rv-card">
@@ -81,7 +81,8 @@
       </div>
       <div class="rv-field">
         <label for="reasonText">Reason (required when rejecting)</label>
-        <textarea name="reason" id="reasonText" rows="3"></textarea>
+        <textarea name="reason" id="reasonText" rows="3" aria-describedby="reasonHint"></textarea>
+        <span id="reasonHint" class="rv-sub">The participant sees this note.</span>
       </div>
       <button type="submit" class="btn btn-primary" id="submitBtn">Record decision</button>
     </form>
@@ -101,7 +102,7 @@
   <table class="rv-table" style="margin-bottom: 18px;">
     <colgroup><col style="width:46px;"><col class="rv-col-q"><col></colgroup>
     <thead>
-      <tr><th>#</th><th>Question</th><th>Answer</th></tr>
+      <tr><th scope="col">#</th><th scope="col">Question</th><th scope="col">Answer</th></tr>
     </thead>
     <tbody>
       {% for q in step.questions %}

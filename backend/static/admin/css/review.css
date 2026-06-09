@@ -50,7 +50,7 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #94a3b8;
+    color: #64748b;
     margin-bottom: 3px;
 }
 
@@ -94,7 +94,7 @@
 }
 
 .rv-empty {
-    color: #94a3b8;
+    color: #64748b;
     font-style: italic;
 }
 
@@ -165,7 +165,7 @@
     display: block;
     margin-top: 10px;
     font-size: 11px;
-    color: #94a3b8;
+    color: #64748b;
 }
 
 .rv-form label {
@@ -260,4 +260,36 @@
     margin-top: 14px;
     font-size: 13px;
     color: #64748b;
+}
+
+/* Small-text greys above are #64748b: #94a3b8 fell below 4.5:1 on white. */
+
+.rv-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.rv-filters a:focus-visible,
+.rv-pager a:focus-visible,
+.rv-doc a:focus-visible,
+.rv-form select:focus-visible,
+.rv-form textarea:focus-visible {
+    outline: 2px solid #0f172a;
+    outline-offset: 2px;
+}
+
+/* On a phone the tables scroll sideways instead of squeezing the answers. */
+@media (max-width: 640px) {
+    .rv-table {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .rv-head h1 {
+        font-size: 19px;
+    }
 }

@@ -116,6 +116,17 @@ class StepEndpointTests(AuthenticatedAPITestCase):
         self.onboarding.refresh_from_db()
         assert self.onboarding.status == OnboardingStatus.IN_PROGRESS
 
+    def test_a_reviewer_reading_the_steps_leaves_the_status_alone(self):
+        self.authenticate(make_admin())
+        for url in (
+            reverse("onboarding-step", args=[self.onboarding.id, 1]),
+            reverse("onboarding-all-steps", args=[self.onboarding.id]),
+        ):
+            assert self.client.get(url).status_code == 200
+
+        self.onboarding.refresh_from_db()
+        assert self.onboarding.status == OnboardingStatus.PENDING
+
     def test_a_locked_step_is_refused(self):
         response = self.client.get(
             reverse("onboarding-step", args=[self.onboarding.id, 2])

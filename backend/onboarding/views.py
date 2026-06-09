@@ -52,6 +52,19 @@ def _get_onboarding(user, onboarding_id):
     return get_object_or_404(_visible_onboardings(user), id=onboarding_id)
 
 
+def _open_onboarding(user, onboarding_id):
+    """Fetch an onboarding for reading its steps.
+
+    Opening a step starts the onboarding, but only when the participant does
+    it: a reviewer looking at the steps must not move somebody else's
+    onboarding out of ``pending``.
+    """
+    onboarding = _get_onboarding(user, onboarding_id)
+    if onboarding.created_for_id == user.id:
+        lifecycle.start(onboarding)
+    return onboarding
+
+
 def _answers_by_question(onboarding, question_ids):
     """One query for every answer the serializer will ask for."""
     answers = Answer.objects.filter(
@@ -127,8 +140,7 @@ class OnboardingStepAPIView(APIView):
         responses={200: OnboardingStepSerializer()}, tags=["UserOnboarding"]
     )
     def get(self, request, onboarding_id, step_order):
-        onboarding = _get_onboarding(request.user, onboarding_id)
-        lifecycle.start(onboarding)
+        onboarding = _open_onboarding(request.user, onboarding_id)
 
         plan = build_step_plan(onboarding)
 
@@ -160,8 +172,7 @@ class OnboardingAllStepsAPIView(APIView):
         responses={200: OnboardingStepSerializer(many=True)}, tags=["UserOnboarding"]
     )
     def get(self, request, onboarding_id):
-        onboarding = _get_onboarding(request.user, onboarding_id)
-        lifecycle.start(onboarding)
+        onboarding = _open_onboarding(request.user, onboarding_id)
 
         plan = build_step_plan(onboarding)
         steps = _load_steps(plan)

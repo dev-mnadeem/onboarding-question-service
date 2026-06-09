@@ -3,6 +3,7 @@
 import logging
 from typing import ClassVar
 
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
@@ -83,7 +84,11 @@ class UploadDocumentAPIView(APIView):
         answer, _ = Answer.objects.get_or_create(
             user=request.user, question=question, onboarding=onboarding
         )
-        document = Document.objects.create(answer=answer, uploaded_file=data["file"])
+        document = Document.objects.create(
+            answer=answer,
+            uploaded_file=data["file"],
+            original_name=data["file"].name[:255],
+        )
 
         logger.info(
             "Stored document %s for answer %s (onboarding %s)",
@@ -123,3 +128,33 @@ class ListDocumentsAPIView(ListAPIView):
             )
 
         return queryset.order_by("-uploaded_at")
+
+
+class DocumentFileAPIView(APIView):
+    """``GET /api/answer/documents/<id>/file/`` -- download one upload.
+
+    Uploads are identity documents, so they are never served from a public
+    ``/media/`` URL. The uploader and staff may fetch a file; anyone else gets
+    the same 404 as for a document that does not exist. Session auth works
+    too, which is what the admin's links rely on.
+    """
+
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={200: "The file", 404: "Not found"}, tags=["Answers"]
+    )
+    def get(self, request, document_id):
+        documents = Document.objects.select_related("answer")
+        if not request.user.is_staff:
+            documents = documents.filter(answer__user=request.user)
+        document = get_object_or_404(documents, id=document_id)
+
+        response = FileResponse(
+            document.uploaded_file.open("rb"),
+            as_attachment=True,
+            filename=document.display_name,
+        )
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response

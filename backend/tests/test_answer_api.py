@@ -1,5 +1,3 @@
-import tempfile
-
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
@@ -8,6 +6,7 @@ from rest_framework.test import APITestCase
 from answer.models import Document
 from backend.enums import AnswerType, OnboardingStatus, UserRole
 from tests.factories import (
+    make_admin,
     make_answer,
     make_document,
     make_onboarding,
@@ -17,14 +16,11 @@ from tests.factories import (
     make_user,
 )
 
-MEDIA = tempfile.mkdtemp(prefix="limitless-test-media-")
-
 
 def a_file(name="passport.pdf", size=64):
     return SimpleUploadedFile(name, b"x" * size, content_type="application/pdf")
 
 
-@override_settings(MEDIA_ROOT=MEDIA)
 class UploadDocumentTests(APITestCase):
     def setUp(self):
         self.user = make_user()
@@ -55,6 +51,20 @@ class UploadDocumentTests(APITestCase):
         assert response.status_code == 201
         assert Document.objects.count() == 1
         assert response.data["question_id"] == self.upload_question.id
+        assert response.data["name"] == "passport.pdf"
+
+    def test_the_file_is_stored_under_a_random_name(self):
+        self._upload(self.upload_question, file=a_file("Jane Example passport.PDF"))
+        stored = Document.objects.get().uploaded_file.name
+
+        assert stored.startswith("documents/")
+        assert stored.endswith(".pdf")
+        assert "Jane" not in stored
+
+    def test_an_unsupported_file_type_is_refused(self):
+        response = self._upload(self.upload_question, file=a_file("run-me.html"))
+        assert response.status_code == 400
+        assert "Unsupported file type" in str(response.data["file"])
 
     def test_a_text_question_does_not(self):
         response = self._upload(self.text_question)
@@ -103,14 +113,13 @@ class UploadDocumentTests(APITestCase):
         assert response.status_code == 400
         assert "closed to uploads" in response.data["detail"]
 
-    @override_settings(MAX_UPLOAD_SIZE_MB=1, MEDIA_ROOT=MEDIA)
+    @override_settings(MAX_UPLOAD_SIZE_MB=1)
     def test_an_oversized_file_is_refused(self):
         response = self._upload(self.upload_question, file=a_file(size=2 * 1024 * 1024))
         assert response.status_code == 400
         assert "File too large (max 1MB)." in str(response.data["file"])
 
 
-@override_settings(MEDIA_ROOT=MEDIA)
 class ListDocumentsTests(APITestCase):
     def setUp(self):
         self.user = make_user()
@@ -151,3 +160,43 @@ class ListDocumentsTests(APITestCase):
         response = self.client.get(self.url, {"onboarding_id": "abc"})
         assert response.status_code == 400
         assert "onboarding_id" in response.data
+
+
+class DocumentFileTests(APITestCase):
+    def setUp(self):
+        self.owner = make_user()
+        question = make_question("Upload your passport", AnswerType.FILE)
+        make_step("Documents", questions=[question], order=1)
+        onboarding = make_onboarding(user=self.owner)
+        self.document = make_document(make_answer(onboarding, question))
+        self.url = reverse("document-file", args=[self.document.id])
+
+    def test_the_owner_can_download_their_file(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(self.url)
+
+        assert response.status_code == 200
+        assert b"".join(response.streaming_content) == b"file-bytes"
+        assert 'filename="passport.pdf"' in response["Content-Disposition"]
+        assert response["Cache-Control"] == "private, no-store"
+
+    def test_staff_can_download_any_file(self):
+        self.client.force_authenticate(user=make_admin())
+        assert self.client.get(self.url).status_code == 200
+
+    def test_another_participant_gets_a_404(self):
+        self.client.force_authenticate(user=make_user("stranger@example.test"))
+        assert self.client.get(self.url).status_code == 404
+
+    def test_anonymous_callers_are_refused(self):
+        assert self.client.get(self.url).status_code in (401, 403)
+
+    def test_the_media_url_does_not_serve_uploads(self):
+        stored = self.document.uploaded_file.name
+        self.client.force_authenticate(user=self.owner)
+        assert self.client.get(f"/media/{stored}").status_code == 404
+
+    def test_the_listing_points_at_the_protected_url(self):
+        self.client.force_authenticate(user=self.owner)
+        listed = self.client.get(reverse("list-documents")).data["results"][0]
+        assert listed["file_url"] == self.url

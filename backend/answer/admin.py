@@ -2,6 +2,7 @@ from typing import ClassVar
 
 from django.contrib import admin
 from django.db.models import Count
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
@@ -9,6 +10,17 @@ from answer.answer_types import handler_for
 from backend.admin_mixins import RowActionsAdmin
 
 from .models import Answer, Document
+
+
+def document_link(document):
+    """Link through the authenticated download view, never ``/media/``."""
+    if not document.pk or not document.uploaded_file:
+        return "—"
+    return format_html(
+        '<a href="{}">{}</a>',
+        reverse("document-file", args=[document.pk]),
+        document.display_name,
+    )
 
 
 class DocumentInline(admin.TabularInline):
@@ -26,13 +38,7 @@ class DocumentInline(admin.TabularInline):
 
     @admin.display(description="Open")
     def file_link(self, obj):
-        if not obj.uploaded_file:
-            return "-"
-        return format_html(
-            '<a href="{}" target="_blank" rel="noopener">{}</a>',
-            obj.uploaded_file.url,
-            obj.uploaded_file.name,
-        )
+        return document_link(obj)
 
 
 @admin.register(Answer)
@@ -146,13 +152,7 @@ class DocumentAdmin(RowActionsAdmin):
 
     @admin.display(description="File")
     def file_link(self, obj):
-        if not obj.uploaded_file:
-            return "—"
-        return format_html(
-            '<a href="{}" target="_blank" rel="noopener">{}</a>',
-            obj.uploaded_file.url,
-            obj.uploaded_file.name,
-        )
+        return document_link(obj)
 
     @admin.display(description="Status")
     def approval_status(self, obj):

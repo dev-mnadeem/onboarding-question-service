@@ -1,6 +1,8 @@
+from pathlib import PurePath
 from typing import ClassVar
 
 from django.conf import settings
+from django.urls import reverse
 from rest_framework import serializers
 
 from answer.answer_types import InlineValueRejectedError, handler_for
@@ -82,6 +84,12 @@ class DocumentUploadSerializer(serializers.Serializer):
         if uploaded.size > max_mb * BYTES_PER_MB:
             msg = f"File too large (max {max_mb}MB)."
             raise serializers.ValidationError(msg)
+
+        allowed = settings.ALLOWED_UPLOAD_EXTENSIONS
+        extension = PurePath(uploaded.name).suffix.lower().lstrip(".")
+        if extension not in allowed:
+            msg = f"Unsupported file type. Allowed: {', '.join(sorted(allowed))}."
+            raise serializers.ValidationError(msg)
         return uploaded
 
 
@@ -96,6 +104,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     """A stored document, as returned by the list and upload endpoints."""
 
     file_url = serializers.SerializerMethodField()
+    name = serializers.CharField(source="display_name", read_only=True)
     question_id = serializers.IntegerField(source="answer.question_id", read_only=True)
     onboarding_id = serializers.IntegerField(
         source="answer.onboarding_id", read_only=True
@@ -108,7 +117,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             "answer",
             "question_id",
             "onboarding_id",
-            "uploaded_file",
+            "name",
             "file_url",
             "is_approved",
             "rejection_reason",
@@ -116,5 +125,5 @@ class DocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_file_url(self, obj) -> str | None:
-        return obj.uploaded_file.url if obj.uploaded_file else None
+    def get_file_url(self, obj) -> str:
+        return reverse("document-file", args=[obj.id])

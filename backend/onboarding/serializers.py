@@ -1,5 +1,6 @@
 from typing import ClassVar
 
+from django.urls import reverse
 from rest_framework import serializers
 
 from answer.answer_types import handler_for, inline_value_fields
@@ -41,7 +42,8 @@ class StepQuestionSerializer(serializers.ModelSerializer):
                 "documents": [
                     {
                         "id": doc.id,
-                        "name": doc.uploaded_file.name,
+                        "name": doc.display_name,
+                        "file_url": reverse("document-file", args=[doc.id]),
                         "approved": doc.is_approved,
                     }
                     for doc in documents

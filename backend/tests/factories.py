@@ -85,5 +85,6 @@ def make_document(answer, name="passport.pdf", is_approved=False):
     return Document.objects.create(
         answer=answer,
         uploaded_file=SimpleUploadedFile(name, b"file-bytes"),
+        original_name=name,
         is_approved=is_approved,
     )

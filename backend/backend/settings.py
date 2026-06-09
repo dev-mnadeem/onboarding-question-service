@@ -111,6 +111,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "backend.wsgi.application"
+TEST_RUNNER = "backend.test_runner.TempMediaRunner"
 ASGI_APPLICATION = "backend.asgi.application"
 
 # ---------------------------------------------------------------------------
@@ -159,6 +160,8 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# Uploads are never served from MEDIA_URL; answer.views.DocumentFileAPIView
+# streams them to their owner or to staff.
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(env("MEDIA_ROOT", str(BASE_DIR / "media")))
 
@@ -177,6 +180,11 @@ STORAGES = {
 
 # Uploads larger than this are rejected by the serializer before they are read.
 MAX_UPLOAD_SIZE_MB = env_int("MAX_UPLOAD_SIZE_MB", 10)
+# Uploads are identity and right-to-work documents: scans and PDFs only.
+ALLOWED_UPLOAD_EXTENSIONS = frozenset(
+    ext.lower().lstrip(".")
+    for ext in env_list("ALLOWED_UPLOAD_EXTENSIONS", "pdf,jpg,jpeg,png")
+)
 
 # ---------------------------------------------------------------------------
 # API

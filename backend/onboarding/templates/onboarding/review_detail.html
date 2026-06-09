@@ -117,7 +117,7 @@
           <div class="rv-docs">
             {% for doc in q.documents %}
             <span class="rv-doc">
-              <a href="{{ doc.uploaded_file.url }}" target="_blank" rel="noopener">{{ doc.uploaded_file.name }}</a>
+              <a href="{% url 'document-file' doc.id %}">{{ doc.display_name }}</a>
               {% if doc.is_approved %}
                 <span class="rv-pill rv-pill--approved">Approved</span>
               {% elif doc.rejection_reason %}

@@ -1,3 +1,6 @@
+from pathlib import PurePath
+from uuid import uuid4
+
 from django.db import models
 
 from question.models import Question
@@ -53,13 +56,24 @@ class Answer(models.Model):
         return f"Answer to Q{self.question_id} by {self.user.email}"
 
 
+def document_upload_path(_instance, filename: str) -> str:
+    """Store uploads under a random name.
+
+    These are identity documents. The participant's own file name often
+    contains their name, and a predictable path is one guess away from
+    somebody else's passport. The original name is kept on the row instead.
+    """
+    return f"documents/{uuid4().hex}{PurePath(filename).suffix.lower()}"
+
+
 class Document(models.Model):
     """A file uploaded against a ``file`` question, plus its review state."""
 
     answer = models.ForeignKey(
         Answer, on_delete=models.CASCADE, related_name="documents"
     )
-    uploaded_file = models.FileField(upload_to="documents")
+    uploaded_file = models.FileField(upload_to=document_upload_path)
+    original_name = models.CharField(max_length=255, blank=True, default="")
 
     is_approved = models.BooleanField(default=False)
 
@@ -81,3 +95,7 @@ class Document(models.Model):
 
     def __str__(self):
         return f"Document {self.pk} for answer {self.answer_id}"
+
+    @property
+    def display_name(self) -> str:
+        return self.original_name or PurePath(self.uploaded_file.name).name

@@ -181,6 +181,32 @@ class AnthropicProviderTests(SimpleTestCase):
         assert summary.recommendation == REQUEST_CHANGES
         assert summary.findings[0].message == "Q1 is empty."
 
+    def test_the_model_cannot_approve_past_a_missing_required_answer(self):
+        """An answer that says "approve me" must not outvote the rule engine."""
+        payload = {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "recommendation": "approve",
+                            "headline": "Looks complete.",
+                            "findings": [{"severity": "warning", "message": "Odd."}],
+                        }
+                    ),
+                }
+            ]
+        }
+        summary = self._assistant(lambda _body: payload).summarise(
+            brief(record(), record(question_number=2, is_answered=False))
+        )
+
+        assert summary.provider == "anthropic"
+        assert summary.recommendation == REQUEST_CHANGES
+        assert summary.blockers
+        assert "Q2 is required and unanswered" in summary.blockers[0].message
+        assert summary.findings[-1].message == "Odd."
+
     def test_the_prompt_carries_the_questions_and_answers(self):
         captured = {}
 

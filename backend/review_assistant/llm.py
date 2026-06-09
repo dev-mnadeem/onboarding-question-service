@@ -69,7 +69,7 @@ class AnthropicAssistant:
     def summarise(self, brief: ReviewBrief) -> ReviewSummary:
         try:
             payload = self._transport(self._request_body(brief))
-            return self._parse(payload)
+            summary = self._parse(payload)
         except Exception:
             logger.warning(
                 "Review assistant provider '%s' unavailable, using rules.",
@@ -78,6 +78,24 @@ class AnthropicAssistant:
             )
             summary = self.fallback.summarise(brief)
             return replace(summary, provider=f"rules (fallback from {self.name})")
+        return self._enforce_blockers(summary, brief)
+
+    def _enforce_blockers(self, summary: ReviewSummary, brief: ReviewBrief):
+        """Missing required answers are a fact, not the model's opinion.
+
+        The prompt carries text the participant wrote, so the model can be
+        talked into "approve". The rule engine's blockers are therefore put
+        back in, and they force ``request_changes``, whatever the model said.
+        """
+        blockers = self.fallback.summarise(brief).blockers
+        if not blockers:
+            return summary
+        advisory = tuple(f for f in summary.findings if f.severity != BLOCKER)
+        return replace(
+            summary,
+            recommendation=REQUEST_CHANGES,
+            findings=(*blockers, *advisory),
+        )
 
     def _request_body(self, brief: ReviewBrief) -> dict:
         return {

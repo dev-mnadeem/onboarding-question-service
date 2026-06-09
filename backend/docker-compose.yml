@@ -1,0 +1,50 @@
+name: limitless-horizon
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-limitless}
+      MYSQL_USER: ${DB_USER:-limitless}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-limitless}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-limitless-root}
+    ports:
+      - "${DB_PORT_PUBLISHED:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-False}
+      SECRET_KEY: ${SECRET_KEY:-compose-development-secret}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+      DB_ENGINE: django.db.backends.mysql
+      DB_NAME: ${DB_NAME:-limitless}
+      DB_USER: ${DB_USER:-limitless}
+      DB_PASSWORD: ${DB_PASSWORD:-limitless}
+      DB_HOST: db
+      DB_PORT: "3306"
+      SECURE_SSL_REDIRECT: "False"
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      - media_data:/app/media
+
+volumes:
+  mysql_data:
+  media_data:

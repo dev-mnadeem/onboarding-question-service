@@ -1,0 +1,33 @@
+{% extends "admin/base_site.html" %}
+
+{% load static %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .sidebar-tooltip-icon {
+            float: right;
+            opacity: 0.45;
+            font-weight: bold;
+            font-size: 13px;
+            margin-left: 8px;
+            cursor: help;
+        }
+        .sidebar-tooltip-icon:hover { opacity: 1; }
+    </style>
+    <script>
+        window.JAZZMIN_SIDEBAR_DESCRIPTIONS = {
+            "user/user": "Accounts. Giving someone the Admin role also grants Django staff access.",
+            "services/service": "Lines of business that steps and onboardings can be scoped to.",
+            "onboarding/onboarding": "One participant working through one questionnaire.",
+            "onboarding/onboardingstep": "Reusable groups of questions, targeted at a role and/or services.",
+            "onboarding/stepquestion": "Which question sits at which position inside a step.",
+            "onboarding/review-onboardings": "Everything waiting for an approve or reject decision.",
+            "question/question": "The question bank. Answer type decides how a response is stored.",
+            "answer/answer": "Participants' responses, one row per question per onboarding.",
+            "answer/document": "Files uploaded against file questions, with their approval state."
+        };
+    </script>
+
+    <script src="{% static 'admin/js/sidebar_tooltips.js' %}"></script>
+{% endblock %}

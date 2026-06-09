@@ -1,0 +1,61 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/review.css' %}">{% endblock %}
+
+{% block content %}
+<div class="rv-wrap">
+  <div class="rv-head">
+    <h1>Review queue</h1>
+    <span class="rv-sub">{{ waiting_count }} onboarding{{ waiting_count|pluralize }} waiting for a decision</span>
+  </div>
+
+  <div class="rv-filters">
+    <a href="?status=inreview" class="{% if status_filter == 'inreview' %}is-active{% endif %}">Waiting</a>
+    {% for value, label in status_choices %}
+      {% if value != 'inreview' %}
+        <a href="?status={{ value }}" class="{% if status_filter == value %}is-active{% endif %}">{{ label }}</a>
+      {% endif %}
+    {% endfor %}
+    <a href="?status=all" class="{% if status_filter == 'all' %}is-active{% endif %}">All</a>
+  </div>
+
+  <table class="rv-table">
+    <thead>
+      <tr>
+        <th>Participant</th>
+        <th>Onboarding</th>
+        <th>Status</th>
+        <th>Progress</th>
+        <th>Submitted</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ob in page_obj %}
+      <tr>
+        <td>
+          <strong>{{ ob.created_for.get_full_name|default:ob.created_for.username }}</strong><br>
+          <span class="rv-sub">{{ ob.created_for.email }}</span>
+        </td>
+        <td>{{ ob.onboarding_title }}</td>
+        <td><span class="rv-pill rv-pill--{{ ob.status }}">{{ ob.get_status_display }}</span></td>
+        <td>{{ ob.completed_steps }} / {{ ob.step_plan|length }}</td>
+        <td>{{ ob.completed_at|date:"Y-m-d H:i"|default:"—" }}</td>
+        <td><a class="btn btn-sm btn-outline-primary" href="{% url 'admin:review_onboarding_detail' ob.id %}">Open</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="rv-empty">Nothing here.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <p class="rv-pager">
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    {% if page_obj.has_previous %}<a href="?status={{ status_filter }}&page={{ page_obj.previous_page_number }}">previous</a>{% endif %}
+    {% if page_obj.has_next %}<a href="?status={{ status_filter }}&page={{ page_obj.next_page_number }}">next</a>{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

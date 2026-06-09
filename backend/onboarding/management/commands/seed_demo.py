@@ -14,6 +14,7 @@ from django.utils import timezone
 from answer.models import Answer
 from backend.enums import AnswerType, OnboardingStatus, UserRole
 from onboarding.models import Onboarding, OnboardingStep, StepQuestion
+from onboarding.step_plan import build_step_plan
 from question.models import Question
 from services.models import Service
 
@@ -99,9 +100,14 @@ PARTICIPANTS = [
     ),
 ]
 
+# Identity answers differ per person; everything else is shared.
+IDENTITY = {
+    "ada@example.test": ("Ada Lovelace", "1815-12-10"),
+    "blaise@example.test": ("Blaise Pascal", "1623-06-19"),
+    "chidi@example.test": ("Chidi Anagonye", "1985-04-02"),
+}
+
 ANSWERS = {
-    "What is your full legal name?": {"answer_text": "Ada Lovelace"},
-    "What is your date of birth?": {"answer_date": "1815-12-10"},
     "Do you hold a current driving licence?": {"answer_boolean": True},
     "How many hours per week can you work?": {"answer_number": "37.50"},
     "Describe your preferred shift pattern": {"answer_text": "Earlies"},
@@ -132,7 +138,7 @@ class Command(BaseCommand):
 
         steps = self._create_steps(services)
         admin = self._create_admin(options["admin_email"])
-        self._create_onboardings(services, steps)
+        self._create_onboardings(services)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -168,7 +174,7 @@ class Command(BaseCommand):
             email=email, username="admin", password=DEMO_PASSWORD
         )
 
-    def _create_onboardings(self, services, steps):
+    def _create_onboardings(self, services):
         questions = {q.question_text: q for q in Question.objects.all()}
 
         for email, first_name, role, service, status, completed in PARTICIPANTS:
@@ -204,18 +210,31 @@ class Command(BaseCommand):
                 onboarding.services.set([services[service]])
 
             if completed:
-                self._answer(onboarding, steps, questions, completed)
+                self._answer(onboarding, questions, completed)
 
     @staticmethod
-    def _answer(onboarding, steps, questions, completed_steps):
-        for step in steps[:completed_steps]:
-            for step_question in step.step_questions.select_related("question"):
-                values = ANSWERS.get(step_question.question.question_text)
-                if not values:
+    def _answer(onboarding, questions, completed_steps):
+        """Answer the first ``completed_steps`` steps of *this* onboarding's plan.
+
+        Walking the global step list instead would answer a staff-only step
+        for a participant and skip the steps they actually have.
+        """
+        name, born = IDENTITY.get(onboarding.created_for.email, ("", ""))
+        values_by_text = {
+            **ANSWERS,
+            "What is your full legal name?": {"answer_text": name},
+            "What is your date of birth?": {"answer_date": born},
+        }
+
+        for planned in build_step_plan(onboarding).steps[:completed_steps]:
+            for step_question in planned.step.step_questions.select_related("question"):
+                text = step_question.question.question_text
+                values = values_by_text.get(text)
+                if not values or not any(values.values()):
                     continue
                 Answer.objects.get_or_create(
                     user=onboarding.created_for,
-                    question=questions[step_question.question.question_text],
+                    question=questions[text],
                     onboarding=onboarding,
                     defaults=values,
                 )

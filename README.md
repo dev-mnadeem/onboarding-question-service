@@ -122,10 +122,16 @@ brief to the Messages API over `urllib` and parses a JSON verdict.
 returns the rule engine, and if the HTTP call fails for any reason the provider
 falls back to it and labels the result `rules (fallback from anthropic)`.
 
+The model never gets the last word on completeness. The prompt contains text
+the participant wrote, so a reply recommending approval while a required
+question is unanswered is overridden: the rule engine's blockers are put back
+and the recommendation becomes `request_changes`.
+
 ## Running it
 
-Requires Python 3.12 and [uv](https://github.com/astral-sh/uv). Everything
-happens in `backend/`.
+Requires Python 3.12 (pinned in `backend/.python-version`),
+[uv](https://github.com/astral-sh/uv) and `make`. Everything happens in
+`backend/`.
 
 ```bash
 cd backend
@@ -141,9 +147,8 @@ every lifecycle state, so the review queue has something in it immediately.
 The database is SQLite next to `manage.py` — no service to start. For MySQL
 instead, uncomment the `DB_*` block in `.env` and run `docker compose up db`.
 
-`make check` is the one to run before pushing — ruff lint, ruff format check,
-Django's system checks and a missing-migration check, which is what CI runs.
-`make help` lists the rest of the targets out of the Makefile itself, so this
+`make check` runs ruff lint, the ruff format check, Django's system checks and
+a missing-migration check; `make test` runs the suite. `make help` lists the rest of the targets out of the Makefile itself, so this
 README does not keep a copy of them in step.
 
 Useful URLs once running: `/admin/`, `/swagger/`, `/redoc/`, `/healthz/`.
@@ -168,22 +173,107 @@ token; send `Authorization: Bearer <access>`.
 | GET | `/api/onboarding/{id}/review-summary/` | staff | The assistant's verdict |
 | POST | `/api/answer/upload/` | owner | Attach a file to a file question |
 | GET | `/api/answer/documents/` | any user | Own uploads, paginated and filterable |
+| GET | `/api/answer/documents/{id}/file/` | owner or staff | Download one upload |
 | GET | `/api/question/` | staff | The question bank |
 | GET | `/healthz/` | anyone | Liveness plus a database round-trip |
 
-Answering a step:
+### A session against the seed data
 
-```bash
-curl -X POST localhost:8000/api/onboarding/user/answer/ \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"onboarding_id": 1, "step_id": 1, "responses": [
-        {"question_id": 1, "answer": {"answer_text": "Ada Lovelace"}},
-        {"question_id": 2, "answer": {"answer_date": "1815-12-10"}}]}'
+Captured from `make seed && make run` on a fresh checkout. Blaise is a staff
+member on the residential-care contract who has finished step 1 of 3; tokens
+are shortened. Log in and list your onboardings:
+
+```http
+POST /api/user/login/
+{"email": "blaise@example.test", "password": "demo-password-1"}
+
+200 {"access": "eyJhbGciOi...", "refresh": "eyJhbGciOi...", "role": "staff", "user_id": 3}
+
+GET /api/onboarding/user/
+
+200 {"count": 1, "next": null, "previous": null, "results": [
+      {"id": 2, "onboarding_title": "Blaise's onboarding", "onboarding_for": "staff",
+       "status": "inprogress", "total_steps": 3, "completed_steps": 1,
+       "is_editable": true, "review_reason": null, "reviewed_at": null, ...}]}
 ```
 
-```json
-{"onboarding_id": 1, "step_number": 1, "total_steps": 3,
- "completed_steps": 1, "status": "inprogress", "submitted_for_review": false}
+Step 2 is open, step 3 is not:
+
+```http
+GET /api/onboarding/2/step/3/
+
+400 {"detail": "Step 3 is locked. Complete step 2 first."}
+```
+
+Step 2 asks for a file, which goes through the upload endpoint rather than the
+JSON submit. Only PDF and images are accepted, and the file comes back through
+an authenticated URL, not a `/media/` path:
+
+```http
+POST /api/answer/upload/   (multipart: onboarding_id=2, question_id=3, file=blaise-pascal-visa.pdf)
+
+201 {"id": 1, "answer": 11, "question_id": 3, "onboarding_id": 2,
+     "name": "blaise-pascal-visa.pdf", "file_url": "/api/answer/documents/1/file/",
+     "is_approved": false, "rejection_reason": null, "uploaded_at": "2026-11-08T09:53:17Z"}
+
+POST /api/answer/upload/   (multipart: ..., file=notes.html)
+
+400 {"file": ["Unsupported file type. Allowed: jpeg, jpg, pdf, png."]}
+
+GET /api/answer/documents/1/file/               as Blaise
+200 application/pdf, Content-Disposition: attachment; filename="blaise-pascal-visa.pdf"
+
+GET /api/answer/documents/1/file/               as Dora, another participant
+404 {"detail": "No Document matches the given query."}
+```
+
+A yes/no question answered in the text column is refused; `false` is a real
+answer. Submitting the last step sends the onboarding for review:
+
+```http
+POST /api/onboarding/user/answer/
+{"onboarding_id": 2, "step_id": 2, "responses": [{"question_id": 4, "answer": {"answer_text": "yes"}}]}
+
+400 {"detail": "Question 4 expects 'answer_boolean' for answer type 'boolean'."}
+
+POST /api/onboarding/user/answer/
+{"onboarding_id": 2, "step_id": 2, "responses": [{"question_id": 4, "answer": {"answer_boolean": false}}]}
+
+201 {"onboarding_id": 2, "step_number": 2, "total_steps": 3, "completed_steps": 2,
+     "status": "inprogress", "submitted_for_review": false}
+
+POST /api/onboarding/user/answer/
+{"onboarding_id": 2, "step_id": 3, "responses": [
+   {"question_id": 5, "answer": {"answer_number": "22.5"}},
+   {"question_id": 6, "answer": {"answer_text": "Weekday late shifts, no nights"}}]}
+
+201 {"onboarding_id": 2, "step_number": 3, "total_steps": 3, "completed_steps": 3,
+     "status": "inreview", "submitted_for_review": true}
+```
+
+The reviewer (the seeded admin) reads the assistant's summary and rejects,
+which needs a reason; the participant sees it on the status endpoint:
+
+```http
+GET /api/onboarding/2/review-summary/
+
+200 {"recommendation": "approve",
+     "headline": "Every required question is answered. 2 item(s) are worth a second look.",
+     "provider": "rules",
+     "findings": [
+       {"severity": "warning", "message": "Step 1 (Identity), Q1 answered with 13 character(s) -- may need more detail."},
+       {"severity": "warning", "message": "Step 2 (Right to work), Q1 has 1 uploaded file(s), none approved yet."}]}
+
+PATCH /api/onboarding/2/review/   {"status": "rejected"}
+400 {"review_reason": ["Write a reason for the rejection"]}
+
+PATCH /api/onboarding/2/review/
+{"status": "rejected", "review_reason": "The visa scan is unreadable; please upload a clearer copy."}
+200 {"id": 2, "status": "rejected", "completed_steps": 3,
+     "review_reason": "The visa scan is unreadable; please upload a clearer copy.", ...}
+
+GET /api/onboarding/2/status/                   as Dora
+404 {"detail": "No Onboarding matches the given query."}
 ```
 
 Every object lookup is scoped to the caller: a participant asking for somebody
@@ -205,10 +295,27 @@ submit payload for a file question into a validation error pointing at
 `POST /api/answer/upload/`. Adding a type is a `TextChoices` member and one
 class.
 
+## Uploads
+
+File answers are identity and right-to-work documents, so they are handled
+more strictly than the rest of the data:
+
+- They are stored under a random name (`documents/<uuid>.pdf`). The name the
+  participant gave the file, which often contains their own name, is kept in
+  `Document.original_name` and used only as the download's file name.
+- Nothing serves `MEDIA_ROOT` over HTTP. `GET /api/answer/documents/{id}/file/`
+  streams a file to the person who uploaded it or to staff, with
+  `Cache-Control: private, no-store`; anyone else gets a 404. The reviewer's
+  admin links go through the same view, using the admin session.
+- Only the extensions in `ALLOWED_UPLOAD_EXTENSIONS` are accepted (PDF, JPEG
+  and PNG by default), up to `MAX_UPLOAD_SIZE_MB`.
+- The test runner points `MEDIA_ROOT` at a temporary folder, so running the
+  suite never writes next to real uploads.
+
 ## Configuration
 
 Everything is read from the environment in `backend/settings.py`, and
-`.env.example` lists every variable with a comment. The four worth knowing:
+`.env.example` lists every variable with a comment. The ones worth knowing:
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -216,12 +323,14 @@ Everything is read from the environment in `backend/settings.py`, and
 | `DEBUG` | true in development | When false, adds HSTS, secure cookies and SSL redirect |
 | `DB_ENGINE` | `django.db.backends.sqlite3` | Point at the MySQL backend to use the compose service |
 | `CORS_ALLOWED_ORIGINS` | `FRONTEND_URL` | An explicit list. Credentialed requests and "allow any origin" cannot both be true |
+| `ALLOWED_UPLOAD_EXTENSIONS` | `pdf,jpg,jpeg,png` | Anything else is refused at upload |
+| `REVIEW_ASSISTANT_PROVIDER` | `rules` | `anthropic` also needs `ANTHROPIC_API_KEY`; answers are then sent to that API |
 
 ## Tests
 
 ```console
 $ make test
-Ran 113 tests in 31.092s
+Ran 134 tests in 40.773s
 
 OK
 ```
@@ -234,9 +343,10 @@ accepted); the assistant's verdicts, provider selection and HTTP fallback
 through an injected transport; the reviewer's screens rendering every answer
 type and refusing a crafted POST that would skip the state machine; and query
 counts — the step planner, review brief, onboarding list, review queue and
-admin changelist each assert the same count for one row as for many.
-
-CI runs the same suite, plus lint and `docker compose config`, on every push.
+admin changelist each assert the same count for one row as for many. It also
+pins down the document download rules, the seed command's per-plan answers,
+and that a stale onboarding instance cannot approve or save past a decision
+made in the meantime.
 
 ## Containers
 
@@ -247,8 +357,8 @@ time and served by WhiteNoise, so nothing needs to sit in front of gunicorn.
 `docker-entrypoint.sh` migrates before starting it, and `HEALTHCHECK` polls
 `/healthz/`.
 
-`docker compose config` parses cleanly. The image build and boot have **not**
-been run here.
+`docker compose config` parses cleanly. The image build and the MySQL stack
+have **not** been run; the SQLite path above is the verified one.
 
 ## Known limits
 
@@ -257,4 +367,15 @@ been run here.
 - **Changing a question's `answer_type` after answers exist** leaves values
   stranded in the old column. There is no migration path for that.
 - **Storage is local.** `FILE_STORAGE_BACKEND` takes any Django storage
-  backend class path, but nothing here configures a remote one.
+  backend class path, but nothing here configures a remote one. The download
+  view reads through the storage API, so a remote backend would still be
+  served through it rather than by public URL.
+- **The "thin answer" warning is length-based.** A full name of under
+  `REVIEW_ASSISTANT_THIN_ANSWER_CHARS` characters is flagged like a terse
+  description would be.
+- **Uploading after a rejection reopens the onboarding but does not resubmit
+  it.** The participant resubmits by saving any step again.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

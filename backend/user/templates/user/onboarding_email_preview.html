@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Email Preview</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      .box { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 12px; white-space: pre-wrap; }
+      .meta { color: #444; }
+      a { word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <h2>Onboarding Email Preview</h2>
+    <div class="meta">
+      <div><b>To:</b> {{ to_email }}</div>
+      <div><b>From:</b> {{ from_email }}</div>
+      <div><b>Subject:</b> {{ subject }}</div>
+      <div><b>Invite URL:</b> <a href="{{ invite_url }}" target="_blank">{{ invite_url }}</a></div>
+    </div>
+
+    <div class="box">{{ message }}</div>
+  </body>
+</html>

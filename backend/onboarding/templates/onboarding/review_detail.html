@@ -1,0 +1,158 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/review.css' %}">{% endblock %}
+
+{% block content %}
+<div class="rv-wrap">
+
+  {% if messages %}
+  <ul class="rv-messages">
+    {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  <div class="rv-head">
+    <h1>{{ onboarding.onboarding_title }}</h1>
+    <span class="rv-pill rv-pill--{{ onboarding.status }}">{{ onboarding.get_status_display }}</span>
+  </div>
+
+  <div class="rv-card">
+    <div class="rv-facts">
+      <div class="rv-fact">
+        <span class="rv-label">Participant</span>
+        <span class="rv-value">{{ onboarding.created_for.get_full_name|default:onboarding.created_for.username }}</span>
+      </div>
+      <div class="rv-fact">
+        <span class="rv-label">Email</span>
+        <span class="rv-value">{{ onboarding.created_for.email }}</span>
+      </div>
+      <div class="rv-fact">
+        <span class="rv-label">Role</span>
+        <span class="rv-value">{{ onboarding.get_onboarding_for_display }}</span>
+      </div>
+      <div class="rv-fact">
+        <span class="rv-label">Progress</span>
+        <span class="rv-value">{{ onboarding.completed_steps }} / {{ steps_data|length }} steps</span>
+      </div>
+      <div class="rv-fact">
+        <span class="rv-label">Submitted</span>
+        <span class="rv-value">{{ onboarding.completed_at|date:"Y-m-d H:i"|default:"—" }}</span>
+      </div>
+      <div class="rv-fact">
+        <span class="rv-label">Reviewed by</span>
+        <span class="rv-value">{{ onboarding.reviewed_by.email|default:"—" }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rv-card rv-assistant rv-assistant--{{ summary.recommendation }}">
+    <h2>Review assistant</h2>
+    <p class="rv-headline">{{ summary.headline }}</p>
+    {% if summary.findings %}
+    <ul class="rv-findings">
+      {% for finding in summary.findings %}
+        <li class="rv-{{ finding.severity }}">{{ finding.message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <span class="rv-provider">Recommendation: {{ summary.recommendation }} · provider: {{ summary.provider }}</span>
+  </div>
+
+  {% if onboarding.review_reason %}
+  <div class="rv-card">
+    <h2>Reviewer note</h2>
+    <p>{{ onboarding.review_reason }}</p>
+  </div>
+  {% endif %}
+
+  {% if can_review %}
+  <div class="rv-card">
+    <h2>Decision</h2>
+    <form method="post" class="rv-form">
+      {% csrf_token %}
+      <div class="rv-field">
+        <label for="statusSelect">Outcome</label>
+        <select name="status" id="statusSelect">
+          {% for value, label in review_status_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="rv-field">
+        <label for="reasonText">Reason (required when rejecting)</label>
+        <textarea name="reason" id="reasonText" rows="3"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" id="submitBtn">Record decision</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="rv-card">
+    <h2>Decision</h2>
+    <p class="rv-empty">
+      This onboarding is {{ onboarding.get_status_display|lower }}. Only an
+      onboarding that has been submitted for review can be approved or rejected.
+    </p>
+  </div>
+  {% endif %}
+
+  {% for step in steps_data %}
+  <h2>Step {{ step.order }} — {{ step.title }}</h2>
+  <table class="rv-table" style="margin-bottom: 18px;">
+    <colgroup><col style="width:46px;"><col class="rv-col-q"><col></colgroup>
+    <thead>
+      <tr><th>#</th><th>Question</th><th>Answer</th></tr>
+    </thead>
+    <tbody>
+      {% for q in step.questions %}
+      <tr>
+        <td>{{ q.order }}</td>
+        <td>
+          {{ q.question_text }}
+          {% if q.is_required %}<span class="rv-sub"> · required</span>{% endif %}
+        </td>
+        <td>
+          {% if q.value %}<strong>{{ q.value }}</strong>{% endif %}
+          {% if q.documents %}
+          <div class="rv-docs">
+            {% for doc in q.documents %}
+            <span class="rv-doc">
+              <a href="{{ doc.uploaded_file.url }}" target="_blank" rel="noopener">{{ doc.uploaded_file.name }}</a>
+              {% if doc.is_approved %}
+                <span class="rv-pill rv-pill--approved">Approved</span>
+              {% elif doc.rejection_reason %}
+                <span class="rv-pill rv-pill--rejected">Rejected</span>
+              {% else %}
+                <span class="rv-pill rv-pill--pending">Pending</span>
+              {% endif %}
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if not q.value and not q.documents %}<span class="rv-empty">Not answered</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="rv-empty">This step has no questions.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var form = document.querySelector(".rv-form");
+    if (!form) return;
+    form.addEventListener("submit", function (event) {
+      var outcome = document.getElementById("statusSelect").value;
+      var reason = document.getElementById("reasonText").value.trim();
+      if (outcome === "rejected" && !reason) {
+        event.preventDefault();
+        window.alert("A rejection needs a reason.");
+      }
+    });
+  });
+</script>
+{% endblock %}

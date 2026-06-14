@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+defaults:
+  run:
+    working-directory: ./backend
+
+jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Check formatting
+        run: uv run -- ruff format --check .
+
+      - name: Lint
+        run: uv run -- ruff check .
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # The suite runs on SQLite, which is the default when DB_ENGINE is
+      # unset, so no database service is needed here.
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Django system checks
+        run: uv run -- python manage.py check
+
+      - name: Migrations are up to date with the models
+        run: uv run -- python manage.py makemigrations --check --dry-run
+
+      - name: Run tests
+        run: uv run -- python manage.py test
+        env:
+          LOG_LEVEL: ERROR
+
+  compose:
+    name: Compose file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet

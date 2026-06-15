@@ -258,3 +258,7 @@ been run here.
   stranded in the old column. There is no migration path for that.
 - **Storage is local.** `FILE_STORAGE_BACKEND` takes any Django storage
   backend class path, but nothing here configures a remote one.
+
+## Author
+
+[**Muhammad Nadeem**](https://github.com/dev-mnadeem)

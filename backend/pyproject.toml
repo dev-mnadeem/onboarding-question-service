@@ -4,13 +4,13 @@ version = "0.1.0"
 description = "Onboarding questionnaire service: steps, answers and review"
 requires-python = ">=3.12"
 dependencies = [
-    "django>=6.0,<7.0",
-    "djangorestframework>=3.16.0",
+    "django>=6.1.1,<7.0",
+    "djangorestframework>=3.18.3",
     "djangorestframework-simplejwt>=5.5.0",
     "django-cors-headers>=4.9.0",
     "django-jazzmin>=3.0.0",
     "drf-yasg>=1.21.0",
-    "python-dotenv>=1.0.0",
+    "python-dotenv>=1.2.3",
     "whitenoise>=6.8.0",
 ]
 
